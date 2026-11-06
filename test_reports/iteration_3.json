@@ -1,0 +1,22 @@
+{
+  "summary": "Frontend-only verification of mobile CONFIRMAR DOAÇÃO bug fix. All 5 requested scenarios PASS. Mobile (390x844): parent fixed button visible at bottom (y=788,h=56,w=390, bg rgb(235,25,65), position fixed, topmost element at bottom per elementFromPoint), stays pinned when iframe scrolled down/up. No-value click -> window.alert 'O valor mínimo de doação é R$ 55,00...' shown, URL stays '/'. Selecting 'R$ 98' preset then clicking fixed button -> navigates to /doacao/dados with summary R$ 98,00. 'Desejo doar mensalmente' hidden on mobile (0x0, offsetParent null). In-iframe confirm hidden on mobile. Iframe body has 84px padding-bottom so footer is not obscured by the fixed button. Desktop (1920x800): parent button not rendered (count 0), monthly toggle + in-iframe CONFIRMAR DOAÇÃO visible; selecting R$ 160 and clicking in-iframe confirm navigates to /doacao/dados with R$ 160,00.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "doConfirm() focuses #myvalue before alert when value < MIN; on real mobile devices this may pop the soft keyboard behind/after the alert - minor UX consideration.",
+    "postMessage uses '*' target origin and the parent 'message' listener doesn't check event.origin/event.source; low risk here but could verify event.source === iframeRef.current.contentWindow.",
+    "isMobile is based on viewport width (<=1024px) - tablets in landscape >1024px rely on the in-iframe button (fine, iframe button works on desktop)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not requested)", "frontend": "100%"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Homepage '/' renders iframe /aacd.html?v=20260606d. Mobile fixed button data-testid=mobile-confirm-donation-btn in parent; presets are buttons inside frame whose URL contains 'aacd.html' (text 'Doe R$ 55/98/160 ...'). Min value alert is window.alert. Tested via Playwright emulated viewport only (not real iOS/Android browser chrome)."
+}

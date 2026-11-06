@@ -1,0 +1,24 @@
+{
+  "summary": "Frontend-only regression of the donation flow after DonationValuePage was removed. All 7 requested checks passed on the preview URL: home iframe preset R$98 + CONFIRMAR -> /doacao/dados (value R$98,00 carried over); Voltar (back-button) -> '/' with the home iframe rendered; /doacao/valor redirects to '/'; the dados page renders the AACD logo (loaded, naturalWidth 215), 'Finalizar Doação', red strip, 4 inputs and the Resumo card; CONTINUAR stays disabled until all 4 valid fields are filled, then goes to /doacao/pix; DOAR ANONIMAMENTE -> /doacao/pix. grep found no leftover DonationValuePage or /doacao/valor references except the Navigate redirect.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "PIX page 'Doar novamente' link (non-campanha)", "issue": "PixPaymentPage.jsx line 62 navigates to '/doacao', which redirects to /instituicao/humus, not to Home '/'. This doesn't match the new flow, where line 379 'DOAR NOVAMENTE' goes to '/'. Not covered by the request, but probably should be '/'.", "affected_selectors": ["[data-testid=donate-again-link]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: change PixPaymentPage.jsx line 62 navigate('/doacao') to navigate('/') so the flow is consistent."
+  ],
+  "critical_code_review_comments": [
+    "PixPaymentPage donate-again-link still routes to the '/doacao' -> /instituicao/humus redirect instead of Home."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100% (7/7 requested checks)"},
+  "seed_data_creation": "None. The CONTINUAR and anonymous flows reached /doacao/pix, which may have created PIX/donation records in the backend for 'Maria Silva' / anonymous at R$55.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Home is an iframe (iframe[data-testid=home-aacd-frame]). Presets: .aacd-tab-layout-0-x-listItem button (55/98/160). The CONFIRMAR text button posts 'aacd-donate'. The /doacao/dados?value=55 query param works for direct access."
+}
