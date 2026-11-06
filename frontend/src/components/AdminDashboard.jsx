@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { LogOut, RefreshCw, DollarSign, TrendingUp, Copy, Trash2, X, Send, Settings, LayoutDashboard, Eye, Download, Zap, HelpCircle, Save, ExternalLink } from 'lucide-react';
+import { LogOut, RefreshCw, DollarSign, TrendingUp, Copy, Trash2, X, Send, Settings, LayoutDashboard, Eye, Download, Zap, HelpCircle, Save, ExternalLink, Mail } from 'lucide-react';
 
 const API = '/api';
 
@@ -31,6 +31,8 @@ const AdminDashboard = () => {
   const [visitsTotal, setVisitsTotal] = useState(0);
   const [visitsModal, setVisitsModal] = useState(false);
   const [originFilter, setOriginFilter] = useState('all');
+  const [sendingReminders, setSendingReminders] = useState(false);
+  const [reminderResult, setReminderResult] = useState(null);
 
   const token = localStorage.getItem('admin_token');
 
@@ -126,6 +128,18 @@ const AdminDashboard = () => {
       await axios.delete(`${API}/admin/donations/${donationId}`, { headers: { Authorization: `Bearer ${token}` } });
       fetchData();
     } catch (error) { console.error('Erro ao remover doação'); }
+  };
+
+  const handleSendReminders = async () => {
+    setSendingReminders(true);
+    setReminderResult(null);
+    try {
+      const res = await axios.post(`${API}/admin/send-reminders`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      setReminderResult({ success: true, ...res.data });
+    } catch (error) {
+      setReminderResult({ success: false, message: error.response?.data?.detail || 'Erro ao enviar lembretes' });
+    }
+    setSendingReminders(false);
   };
 
   const handleDetectTelegram = async () => {
@@ -265,6 +279,37 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+      {/* Reminder result modal */}
+      {reminderResult && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setReminderResult(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center" onClick={e => e.stopPropagation()} data-testid="reminder-result-modal">
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${reminderResult.success ? 'bg-green-100' : 'bg-red-100'}`}>
+              <Mail className={`w-7 h-7 ${reminderResult.success ? 'text-green-600' : 'text-red-600'}`} />
+            </div>
+            {reminderResult.success ? (
+              <>
+                <h3 className="text-lg font-bold text-gray-800 mb-2">Lembretes enviados!</h3>
+                <p className="text-gray-600 text-sm mb-1" data-testid="reminder-result-message">
+                  {reminderResult.sent} lembrete(s) enviado(s) de {reminderResult.total_recipients} doador(es) com e-mail.
+                </p>
+                {reminderResult.failed > 0 && (
+                  <p className="text-red-500 text-xs mb-4">{reminderResult.failed} falharam no envio.</p>
+                )}
+                {reminderResult.total_recipients === 0 && (
+                  <p className="text-gray-500 text-xs mb-4">Nenhum doador com e-mail cadastrado ainda.</p>
+                )}
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold text-gray-800 mb-2">Erro no envio</h3>
+                <p className="text-gray-600 text-sm mb-4" data-testid="reminder-result-message">{reminderResult.message}</p>
+              </>
+            )}
+            <Button onClick={() => setReminderResult(null)} className="w-full bg-gray-800 text-white hover:bg-gray-900 rounded-lg py-2.5 mt-2" data-testid="reminder-result-close">Fechar</Button>
+          </div>
+        </div>
+      )}
+
       {confirmClear && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setConfirmClear(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
@@ -389,6 +434,9 @@ const AdminDashboard = () => {
                       {origins.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   )}
+                  <Button data-testid="send-reminders-button" onClick={handleSendReminders} disabled={sendingReminders} className="bg-[#eb1941] text-white hover:brightness-110 disabled:opacity-60 rounded-lg px-4 py-2 flex items-center gap-2 text-sm">
+                    <Mail className={`w-4 h-4 ${sendingReminders ? 'animate-pulse' : ''}`} /> {sendingReminders ? 'Enviando...' : 'Enviar lembrete'}
+                  </Button>
                   <Button data-testid="download-data-button" onClick={() => {
                     const lines = ['DADOS DOS DOADORES', '='.repeat(50), ''];
                     filteredDonations.forEach((d, i) => {

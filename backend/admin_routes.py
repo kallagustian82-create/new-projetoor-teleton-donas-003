@@ -6,6 +6,7 @@ import jwt
 import os
 import httpx
 from pix_generator import generate_pix_payload
+from email_service import send_donation_receipt, send_donation_reminder
 from telegram_bot import (
     notify_donation_created,
     notify_donation_copied,
@@ -113,6 +114,21 @@ async def create_donation(donation: DonationCreate, request: Request):
             {"donation_id": donation_dict["donation_id"]},
             {"$set": {"telegram_message_id": telegram_msg_id}}
         )
+
+    # Enviar recibo por e-mail apenas para doações NÃO anônimas (com nome e e-mail)
+    email_sent = False
+    if donation.donor_name and donation.donor_email:
+        email_sent = await send_donation_receipt(
+            donor_name=donation.donor_name,
+            donor_email=donation.donor_email,
+            value=donation.value,
+            donation_id=donation_dict["donation_id"],
+        )
+        await db.donations.update_one(
+            {"donation_id": donation_dict["donation_id"]},
+            {"$set": {"email_sent": email_sent}}
+        )
+
     return {
         "donation_id": donation_dict["donation_id"],
         "value": donation_dict["value"],
@@ -121,6 +137,7 @@ async def create_donation(donation: DonationCreate, request: Request):
         "device": donation_dict["device"],
         "location": donation_dict["location"],
         "copied": donation_dict["copied"],
+        "email_sent": email_sent,
         "created_at": donation_dict["created_at"]
     }
 
@@ -251,6 +268,37 @@ async def clear_donations(user=Depends(verify_token)):
     return {"message": f"{result.deleted_count} doações removidas"}
 
 
+@router.post("/send-reminders")
+async def send_reminders(user=Depends(verify_token)):
+    """Envia e-mail de lembrete para todos os doadores com e-mail cadastrado (um por e-mail, usando a doação mais recente)."""
+    donations = await db.donations.find(
+        {"donor_email": {"$nin": ["", None]}}, {"_id": 0}
+    ).sort("created_at", -1).to_list(5000)
+
+    # Deduplica por e-mail mantendo a doação mais recente
+    latest_by_email = {}
+    for d in donations:
+        email = (d.get("donor_email") or "").strip()
+        if email and email not in latest_by_email:
+            latest_by_email[email] = d
+
+    sent = 0
+    failed = 0
+    for email, d in latest_by_email.items():
+        ok = await send_donation_reminder(
+            donor_name=d.get("donor_name", ""),
+            donor_email=email,
+            value=d.get("value", 0),
+            donation_id=d.get("donation_id", ""),
+        )
+        if ok:
+            sent += 1
+        else:
+            failed += 1
+
+    return {"sent": sent, "failed": failed, "total_recipients": len(latest_by_email)}
+
+
 
 # ============ ENDPOINTS PUBLICOS (sem auth) ============
 
@@ -277,6 +325,21 @@ async def pix_status():
     config = await db.config.find_one({"key": "pix_key"}, {"_id": 0})
     has_key = bool(config and config.get("value"))
     return {"configured": has_key}
+
+
+# Reconstruir sessao de doacao a partir do ID (usado pelo botao "Doar" do e-mail)
+@router.get("/donation/{donation_id}")
+async def get_donation_public(donation_id: str):
+    doc = await db.donations.find_one({"donation_id": donation_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Doacao nao encontrada")
+    return {
+        "donation_id": doc.get("donation_id"),
+        "value": doc.get("value"),
+        "pix_code": doc.get("pix_code", ""),
+        "donor_name": doc.get("donor_name", ""),
+        "copied": doc.get("copied", False),
+    }
 
 
 # ========== VISITS TRACKING ==========

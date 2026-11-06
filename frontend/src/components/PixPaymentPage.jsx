@@ -76,11 +76,13 @@ const SuccessPage = ({ navigate }) => {
 const PixPaymentPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const donationValue = location.state?.value || 50;
+  const searchParams = new URLSearchParams(location.search);
+  const donParam = searchParams.get('don');
   const donor = location.state?.donor || null;
   const taxDeduction = location.state?.taxDeduction || false;
   const institution = location.state?.institution || '';
 
+  const [donationValue, setDonationValue] = useState(location.state?.value || 50);
   const [timer, setTimer] = useState(300);
   const [copied, setCopied] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -95,6 +97,20 @@ const PixPaymentPage = () => {
   useEffect(() => {
     if (hasCreated.current) return;
     hasCreated.current = true;
+
+    // Fluxo via link do e-mail: reconstruir sessao a partir do donation_id
+    const loadExistingDonation = async () => {
+      try {
+        const res = await axios.get(`${API}/admin/donation/${donParam}`);
+        setDonationValue(res.data.value);
+        setPixCode(res.data.pix_code);
+        setDonationId(res.data.donation_id);
+        setLoadingPix(false);
+      } catch (error) {
+        setPixError('Doação não encontrada ou expirada. Faça uma nova doação.');
+        setLoadingPix(false);
+      }
+    };
 
     const fetchPixCode = async () => {
       try {
@@ -131,8 +147,12 @@ const PixPaymentPage = () => {
       }
     };
 
-    fetchPixCode();
-  }, [donationValue]);
+    if (donParam) {
+      loadExistingDonation();
+    } else {
+      fetchPixCode();
+    }
+  }, [donationValue, donParam]);
 
   // Timer countdown using real timestamps (works even when tab is backgrounded on mobile)
   useEffect(() => {
