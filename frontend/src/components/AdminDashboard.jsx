@@ -33,6 +33,7 @@ const AdminDashboard = () => {
   const [originFilter, setOriginFilter] = useState('all');
   const [sendingReminders, setSendingReminders] = useState(false);
   const [reminderResult, setReminderResult] = useState(null);
+  const [confirmReminders, setConfirmReminders] = useState(false);
 
   const token = localStorage.getItem('admin_token');
 
@@ -131,6 +132,7 @@ const AdminDashboard = () => {
   };
 
   const handleSendReminders = async () => {
+    setConfirmReminders(false);
     setSendingReminders(true);
     setReminderResult(null);
     try {

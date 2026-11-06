@@ -1,0 +1,36 @@
+{
+  "summary": "Tested Resend email receipts, anonymous no-email, public donation reconstruction, admin send-reminders (backend + UI), and /doacao/pix?don= reconstruction. All 9 backend tests passed and all 4 frontend flows passed. Real Resend sends to delivered@resend.dev returned email_sent=true and the reminder sent=1, failed=0.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/send-reminders", "issue": "Sends one email at a time with no throttling or batching. Resend rate limits (about 2 req/s by default) will make sends fail once there are many donors. Every email goes in one request, so a large list may hit the request timeout. Errors are swallowed and not logged."},
+      {"endpoint": "POST /api/admin/send-reminders", "issue": "Reminders also go to donors who already paid or copied the code (no filter on copied/paid). Nothing stops repeated clicks from emailing all donors again."},
+      {"endpoint": "GET /api/admin/donation/{id}", "issue": "Public endpoint, and donation_id is a millisecond timestamp that can be guessed. Anyone can enumerate IDs and read donor_name and value. Consider a random token (uuid) in the email link."},
+      {"endpoint": "POST /api/admin/donations", "issue": "Resend runs inline before the response, which adds latency to PIX donation creation. Consider a BackgroundTask. Exceptions in email_service are swallowed without logging, so failures cannot be diagnosed."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin dashboard", "issues": ["'Enviar lembrete' sends emails right away with no confirmation dialog, which is risky for a bulk email action.", "The header logo next to 'Painel Administrativo' shows as a small cropped red graphic and looks broken."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_email_reminders.py", "/app/test_reports/pytest/pytest_email.xml"],
+  "action_items": [
+    "Add a confirmation dialog before sending reminders",
+    "Throttle or batch reminder sends (e.g. resend.Batch or sleep between sends) and log Resend exceptions",
+    "Consider filtering out donors who already paid or copied from reminders",
+    "Consider a non-guessable token for the public /donation/{id} reconstruction link"
+  ],
+  "critical_code_review_comments": [
+    "email_service.py: send_donation_receipt and send_donation_reminder repeat the env and config logic. Extract a shared _send helper.",
+    "admin_routes.py: donation_id comes from a timestamp and can collide when two donations land in the same millisecond. There is no unique index."
+  ],
+  "updated_files": ["/app/backend/tests/test_email_reminders.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Test donations created with origin TEST and delivered@resend.dev were deleted by ID afterwards. The 2 pre-existing donations were left untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run: REACT_APP_BACKEND_URL=... pytest tests/test_email_reminders.py -p no:xdist. Before calling send-reminders, check that the DB has no real donor emails (only delivered@resend.dev existed). Admin login is at /donaspainel and uses testids login-username-input, login-password-input and login-submit-button."
+}
